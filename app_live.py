@@ -308,7 +308,7 @@ else:
             st.subheader("🛡 Handicap-Absicherung")
             st.write(f"- Verliert nicht mit mehr als **1 Tor** Abstand: **{hc_daten[1]:.1%}** | **2 Toren**: **{hc_daten[2]:.1%}** | **3 Toren**: **{hc_daten[3]:.1%}**")
 
-                        st.subheader("🎯 Spieler-Spezialmärkte (Tore & Karten)")
+            st.subheader("🎯 Spieler-Spezialmärkte (Tore & Karten)")
             
             # 1. Versuch: API-Daten nutzen
             if (team_name == heim and kader_h) or (team_name == auswaerts and kader_a):
