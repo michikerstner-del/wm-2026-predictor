@@ -283,7 +283,7 @@ else:
                 st.markdown("**2. Halbzeit - Tore Gesamt**")
                 st.write(f"- Mindestens 1+ Tore: **{prob_mindestens_tore(1, exp_total_hz2):.1%}** | 2+ Tore: **{prob_mindestens_tore(2, exp_total_hz2):.1%}** | 3+ Tore: **{prob_mindestens_tore(3, exp_total_hz2):.1%}**")
 
-    def generiere_team_ansicht(team_name, exp_ft, exp_hz1, exp_hz2, e_ft, e_hz1, e_hz2, exp_cards_team, hc_daten):
+def generiere_team_ansicht(team_name, exp_ft, exp_hz1, exp_hz2, e_ft, e_hz1, e_hz2, exp_cards_team, hc_daten):
     # ... (der erste Teil der Funktion bleibt identisch wie vorher) ...
 
     st.subheader("🎯 Spieler-Spezialmärkte (Tore & Karten)")
