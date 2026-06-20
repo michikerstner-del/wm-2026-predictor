@@ -310,25 +310,45 @@ else:
 
             st.subheader("🎯 Spieler-Spezialmärkte (Tore & Karten)")
             
-            # Statische Zuweisung basierend auf deiner Kader-Datenbank
-            aktuelle_spieler = kader_daten.get(team_name, [('Spielername nicht in DB', 0.05, 0.10)])
+            # Mapping der API-Namen auf deine Datenbank-Keys
+            name_mapping = {
+                "Germany": "Deutschland",
+                "Ivory Coast": "Elfenbeinküste",
+                "Argentina": "Argentinien",
+                "France": "Frankreich",
+                "Brazil": "Brasilien",
+                "Spain": "Spanien",
+                "England": "England",
+                "Netherlands": "Niederlande",
+                "Canada": "Kanada",
+                "USA": "USA"
+            }
             
-            col_ts1, col_ts2, col_ts3 = st.columns(3)
-            with col_ts1:
-                st.markdown("**Trifft in 1. HZ:**")
-                for spieler, t_anteil, _ in aktuelle_spieler:
-                    prob_hz1 = 1 - math.exp(-(exp_hz1 * t_anteil))
-                    st.write(f"- {spieler}: **{prob_hz1:.1%}**")
-            with col_ts2:
-                st.markdown("**Trifft in 2. HZ:**")
-                for spieler, t_anteil, _ in aktuelle_spieler:
-                    prob_hz2 = 1 - math.exp(-(exp_hz2 * t_anteil))
-                    st.write(f"- {spieler}: **{prob_hz2:.1%}**")
-            with col_ts3:
-                st.markdown("**Karte (Anytime):**")
-                for spieler, _, k_anteil in aktuelle_spieler:
-                    prob_karte = 1 - math.exp(-(exp_cards_team * k_anteil))
-                    st.write(f"- {spieler}: **{prob_karte:.1%}**")
+            # Den Namen vom API-Format auf den DB-Key normalisieren
+            db_key = name_mapping.get(team_name, team_name)
+            
+            # Zugriff auf die Daten – wenn es den Key nicht gibt, bleibt es der Default
+            aktuelle_spieler = kader_daten.get(db_key, [])
+            
+            if not aktuelle_spieler:
+                st.warning(f"Keine Spielerdaten gefunden für: {db_key}")
+            else:
+                col_ts1, col_ts2, col_ts3 = st.columns(3)
+                with col_ts1:
+                    st.markdown("**Trifft in 1. HZ:**")
+                    for spieler, t_anteil, _ in aktuelle_spieler:
+                        prob_hz1 = 1 - math.exp(-(exp_hz1 * t_anteil))
+                        st.write(f"- {spieler}: **{prob_hz1:.1%}**")
+                with col_ts2:
+                    st.markdown("**Trifft in 2. HZ:**")
+                    for spieler, t_anteil, _ in aktuelle_spieler:
+                        prob_hz2 = 1 - math.exp(-(exp_hz2 * t_anteil))
+                        st.write(f"- {spieler}: **{prob_hz2:.1%}**")
+                with col_ts3:
+                    st.markdown("**Karte (Anytime):**")
+                    for spieler, _, k_anteil in aktuelle_spieler:
+                        prob_karte = 1 - math.exp(-(exp_cards_team * k_anteil))
+                        st.write(f"- {spieler}: **{prob_karte:.1%}**")
 
         # AUFRUF DER FUNKTIONEN (Muss auf der gleichen Ebene wie 'with tab_heim' stehen)
         with tab_heim:
