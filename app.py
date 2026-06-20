@@ -16,7 +16,7 @@ def prob_mindestens_tore(bereiche, lam):
 st.set_page_config(page_title="WM 2026 Ultimate Simulator", page_icon="🏆", layout="wide")
 
 st.title("🏆 WM 2026 Ultimate Expert Simulator")
-st.markdown("Das vollendete Analyse-Paket inklusive HZ-Ecken, HZ1-Torschützen und kompletter Over/Under-Übersicht.")
+st.markdown("Das vollendete Analyse-Paket inklusive optimierter Team-Torstufen.")
 
 # 1. Datenbank aller 48 WM-Teilnehmer 2026
 gruppen_daten = {
@@ -210,16 +210,23 @@ if st.button("Umfassende Expert-Simulation starten 🎲", type="primary", use_co
             st.markdown("**2. Halbzeit - Tore Gesamt**")
             st.write(f"- Mindestens 1+ Tore: **{prob_mindestens_tore(1, exp_total_hz2):.1%}** | 2+ Tore: **{prob_mindestens_tore(2, exp_total_hz2):.1%}** | 3+ Tore: **{prob_mindestens_tore(3, exp_total_hz2):.1%}**")
 
-    def generiere_team_ansicht(team_name, exp_hz1, exp_hz2, e_ft, e_hz1, e_hz2, cards, exp_cards_team, hc_daten):
-        # 1. TOR-STUFEN
-        st.subheader(f"⚽ Tor-Stufen für {team_name}")
+    def generiere_team_ansicht(team_name, exp_ft, exp_hz1, exp_hz2, e_ft, e_hz1, e_hz2, cards, exp_cards_team, hc_daten):
+        # 1. OPTIMIERTE TOR-STRUKTUR
+        st.subheader(f"⚽ Gesamt-Tore für {team_name} (90 Min)")
+        st.write(f"- Mindestens 1+ Tor im Spiel: **{prob_mindestens_tore(1, exp_ft):.1%}**")
+        st.write(f"- Mindestens 2+ Tore im Spiel: **{prob_mindestens_tore(2, exp_ft):.1%}**")
+        st.write(f"- Mindestens 3+ Tore im Spiel: **{prob_mindestens_tore(3, exp_ft):.1%}**")
+        
+        # Umbenannte Sektion für Hälften
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown("**1. Halbzeit**")
-            st.write(f"- 1+ Teamtor: **{prob_mindestens_tore(1, exp_hz1):.1%}** | 2+ Teamtore: **{prob_mindestens_tore(2, exp_hz1):.1%}**")
+            st.markdown(f"**Tore 1 HZ ({team_name})**")
+            st.write(f"- 1+ Teamtor: **{prob_mindestens_tore(1, exp_hz1):.1%}**")
+            st.write(f"- 2+ Teamtore: **{prob_mindestens_tore(2, exp_hz1):.1%}**")
         with c2:
-            st.markdown("**2. Halbzeit**")
-            st.write(f"- 1+ Teamtor: **{prob_mindestens_tore(1, exp_hz2):.1%}** | 2+ Teamtore: **{prob_mindestens_tore(2, exp_hz2):.1%}**")
+            st.markdown(f"**Tore 2 HZ ({team_name})**")
+            st.write(f"- 1+ Teamtor: **{prob_mindestens_tore(1, exp_hz2):.1%}**")
+            st.write(f"- 2+ Teamtore: **{prob_mindestens_tore(2, exp_hz2):.1%}**")
             
         # 2. TEAM-ECKEN NACH ABSCHNITTEN
         st.subheader(f"🏳️ Ecken-Prognose für {team_name}")
@@ -257,7 +264,7 @@ if st.button("Umfassende Expert-Simulation starten 🎲", type="primary", use_co
                 st.write(f"- {spieler}: **{prob_karte:.1%}**")
 
     with tab_heim:
-        generiere_team_ansicht(heim, exp_h_hz1, exp_h_hz2, exp_ecken_h_ft, exp_ecken_h_hz1, exp_ecken_h_hz2, h['cards'] * 2.0, exp_karten_h, hc_heim)
+        generiere_team_ansicht(heim, exp_h_ft, exp_h_hz1, exp_h_hz2, exp_ecken_h_ft, exp_ecken_h_hz1, exp_ecken_h_hz2, h['cards'] * 2.0, exp_karten_h, hc_heim)
         
     with tab_auswaerts:
-        generiere_team_ansicht(auswaerts, exp_a_hz1, exp_a_hz2, exp_ecken_a_ft, exp_ecken_a_hz1, exp_ecken_a_hz2, a['cards'] * 2.2, exp_karten_a, hc_ausw)
+        generiere_team_ansicht(auswaerts, exp_a_ft, exp_a_hz1, exp_a_hz2, exp_ecken_a_ft, exp_ecken_a_hz1, exp_ecken_a_hz2, a['cards'] * 2.2, exp_karten_a, hc_ausw)
