@@ -319,6 +319,7 @@ def generiere_team_ansicht(team_name, exp_ft, exp_hz1, exp_hz2, e_ft, e_hz1, e_h
                 st.write(f"- {spieler}: **{prob_karte:.1%}**")
 
         # AUFRUF DER FUNKTIONEN (Muss auf der gleichen Ebene wie 'with tab_heim' stehen)
+        
         with tab_heim:
             generiere_team_ansicht(heim, exp_h_ft, exp_h_hz1, exp_h_hz2, exp_ecken_h_ft, exp_ecken_h_hz1, exp_ecken_h_hz2, exp_karten_h, hc_heim)
             
