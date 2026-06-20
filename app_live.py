@@ -23,7 +23,7 @@ st.markdown("Diese Version filtert **ausschließlich WM-Spiele**, sortiert nach 
 st.sidebar.header("🔑 API-Konfiguration")
 api_key = st.sidebar.text_input("Gib deinen RapidAPI-Key ein:", type="password")
 
-# --- HISTORISCHE BASIS-RATINGS (Erweitert um WM-Teilnehmer) ---
+# --- HISTORISCHE BASIS-RATINGS ---
 base_ratings = {
     "Deutschland": {"att": 1.6, "def": 0.9},
     "Argentinien": {"att": 1.5, "def": 0.8},
@@ -61,7 +61,7 @@ else:
                         if isinstance(raw_data[key], dict) and 'matches' in raw_data[key]:
                             alle_spiele = raw_data[key]['matches']
                         elif isinstance(raw_data[key], list):
-                            alle_spiele = raw_data[key orient]
+                            alle_spiele = raw_data[key]
                 
                 if not alle_spiele and isinstance(raw_data, list):
                     alle_spiele = raw_data
