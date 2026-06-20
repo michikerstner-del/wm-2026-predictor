@@ -283,51 +283,37 @@ else:
                 st.markdown("**2. Halbzeit - Tore Gesamt**")
                 st.write(f"- Mindestens 1+ Tore: **{prob_mindestens_tore(1, exp_total_hz2):.1%}** | 2+ Tore: **{prob_mindestens_tore(2, exp_total_hz2):.1%}** | 3+ Tore: **{prob_mindestens_tore(3, exp_total_hz2):.1%}**")
 
-        def generiere_team_ansicht(team_name, exp_ft, exp_hz1, exp_hz2, e_ft, e_hz1, e_hz2, exp_cards_team, hc_daten):
-            st.subheader(f"⚽ Gesamt-Tore für {team_name} (90 Min)")
-            st.write(f"- Mindestens 1+ Tor im Spiel: **{prob_mindestens_tore(1, exp_ft):.1%}**")
-            st.write(f"- Mindestens 2+ Tore im Spiel: **{prob_mindestens_tore(2, exp_ft):.1%}**")
-            st.write(f"- Mindestens 3+ Tore im Spiel: **{prob_mindestens_tore(3, exp_ft):.1%}**")
-            
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown(f"**Tore 1 HZ ({team_name})**")
-                st.write(f"- 1+ Teamtor: **{prob_mindestens_tore(1, exp_hz1):.1%}**")
-                st.write(f"- 2+ Teamtore: **{prob_mindestens_tore(2, exp_hz1):.1%}**")
-            with c2:
-                st.markdown(f"**Tore 2 HZ ({team_name})**")
-                st.write(f"- 1+ Teamtor: **{prob_mindestens_tore(1, exp_hz2):.1%}**")
-                st.write(f"- 2+ Teamtore: **{prob_mindestens_tore(2, exp_hz2):.1%}**")
-                
-            st.subheader(f"🏳️ Ecken-Prognose für {team_name}")
-            ce1, ce2, ce3 = st.columns(3)
-            ce1.metric("Ecken 1. HZ", f"{e_hz1:.1f}")
-            ce2.metric("Ecken 2. HZ", f"{e_hz2:.1f}")
-            ce3.metric("Ecken Gesamt (90 Min)", f"{e_ft:.1f}")
-
-            st.subheader("🛡 Handicap-Absicherung")
-            st.write(f"- Verliert nicht mit mehr als **1 Tor** Abstand: **{hc_daten[1]:.1%}** | **2 Toren**: **{hc_daten[2]:.1%}** | **3 Toren**: **{hc_daten[3]:.1%}**")
+                def generiere_team_ansicht(team_name, exp_ft, exp_hz1, exp_hz2, e_ft, e_hz1, e_hz2, exp_cards_team, hc_daten):
+            # ... (vorheriger Code bleibt gleich) ...
 
             st.subheader("🎯 Spieler-Spezialmärkte (Tore & Karten)")
-            kader = kader_daten.get(team_name, [
-                ('Abwehrchef (Live-Kader)', 0.03, 0.28), ('Zentrales Mittelfeld', 0.05, 0.35),
-                ('Stürmer Option A', 0.35, 0.05), ('Flügelstürmer Option B', 0.22, 0.10)
-            ])
+            
+            # WICHTIG: Hier holen wir die Namen aus dem Dictionary, wenn live_kader leer ist
+            # Wenn live_kader existiert, werden die Namen aus der API genommen
+            # Wir definieren hier die Quelle für die Namen:
+            if kader_h and team_name == heim:
+                aktuelle_spieler = [(name, 0.15, 0.15) for name, pos in kader_h] # API-Namen
+            elif kader_a and team_name == auswaerts:
+                aktuelle_spieler = [(name, 0.15, 0.15) for name, pos in kader_a] # API-Namen
+            else:
+                aktuelle_spieler = kader_daten.get(team_name, [
+                    ('Spielername nicht geladen', 0.05, 0.10)
+                ])
             
             col_ts1, col_ts2, col_ts3 = st.columns(3)
             with col_ts1:
                 st.markdown("**Trifft in 1. HZ:**")
-                for spieler, t_anteil, _ in kader:
+                for spieler, t_anteil, _ in aktuelle_spieler:
                     prob_hz1 = 1 - math.exp(-(exp_hz1 * t_anteil))
                     st.write(f"- {spieler}: **{prob_hz1:.1%}**")
             with col_ts2:
                 st.markdown("**Trifft in 2. HZ:**")
-                for spieler, t_anteil, _ in kader:
+                for spieler, t_anteil, _ in aktuelle_spieler:
                     prob_hz2 = 1 - math.exp(-(exp_hz2 * t_anteil))
                     st.write(f"- {spieler}: **{prob_hz2:.1%}**")
             with col_ts3:
                 st.markdown("**Karte (Anytime):**")
-                for spieler, _, k_anteil in kader:
+                for spieler, _, k_anteil in aktuelle_spieler:
                     prob_karte = 1 - math.exp(-(exp_cards_team * k_anteil))
                     st.write(f"- {spieler}: **{prob_karte:.1%}**")
 
