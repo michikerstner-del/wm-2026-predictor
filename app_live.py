@@ -283,72 +283,40 @@ else:
                 st.markdown("**2. Halbzeit - Tore Gesamt**")
                 st.write(f"- Mindestens 1+ Tore: **{prob_mindestens_tore(1, exp_total_hz2):.1%}** | 2+ Tore: **{prob_mindestens_tore(2, exp_total_hz2):.1%}** | 3+ Tore: **{prob_mindestens_tore(3, exp_total_hz2):.1%}**")
 
-        def generiere_team_ansicht(team_name, exp_ft, exp_hz1, exp_hz2, e_ft, e_hz1, e_hz2, exp_cards_team, hc_daten):
-            st.subheader(f"⚽ Gesamt-Tore für {team_name} (90 Min)")
-            st.write(f"- Mindestens 1+ Tor im Spiel: **{prob_mindestens_tore(1, exp_ft):.1%}**")
-            st.write(f"- Mindestens 2+ Tore im Spiel: **{prob_mindestens_tore(2, exp_ft):.1%}**")
-            st.write(f"- Mindestens 3+ Tore im Spiel: **{prob_mindestens_tore(3, exp_ft):.1%}**")
-            
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown(f"**Tore 1 HZ ({team_name})**")
-                st.write(f"- 1+ Teamtor: **{prob_mindestens_tore(1, exp_hz1):.1%}**")
-                st.write(f"- 2+ Teamtore: **{prob_mindestens_tore(2, exp_hz1):.1%}**")
-            with c2:
-                st.markdown(f"**Tore 2 HZ ({team_name})**")
-                st.write(f"- 1+ Teamtor: **{prob_mindestens_tore(1, exp_hz2):.1%}**")
-                st.write(f"- 2+ Teamtore: **{prob_mindestens_tore(2, exp_hz2):.1%}**")
-                
-            st.subheader(f"🏳️ Ecken-Prognose für {team_name}")
-            ce1, ce2, ce3 = st.columns(3)
-            ce1.metric("Ecken 1. HZ", f"{e_hz1:.1f}")
-            ce2.metric("Ecken 2. HZ", f"{e_hz2:.1f}")
-            ce3.metric("Ecken Gesamt (90 Min)", f"{e_ft:.1f}")
+    def generiere_team_ansicht(team_name, exp_ft, exp_hz1, exp_hz2, e_ft, e_hz1, e_hz2, exp_cards_team, hc_daten):
+    # ... (der erste Teil der Funktion bleibt identisch wie vorher) ...
 
-            st.subheader("🛡 Handicap-Absicherung")
-            st.write(f"- Verliert nicht mit mehr als **1 Tor** Abstand: **{hc_daten[1]:.1%}** | **2 Toren**: **{hc_daten[2]:.1%}** | **3 Toren**: **{hc_daten[3]:.1%}**")
-
-            st.subheader("🎯 Spieler-Spezialmärkte (Tore & Karten)")
-            
-            # Mapping der API-Namen auf deine Datenbank-Keys
-            name_mapping = {
-                "Germany": "Deutschland",
-                "Ivory Coast": "Elfenbeinküste",
-                "Argentina": "Argentinien",
-                "France": "Frankreich",
-                "Brazil": "Brasilien",
-                "Spain": "Spanien",
-                "England": "England",
-                "Netherlands": "Niederlande",
-                "Canada": "Kanada",
-                "USA": "USA"
-            }
-            
-            # Den Namen vom API-Format auf den DB-Key normalisieren
-            db_key = name_mapping.get(team_name, team_name)
-            
-            # Zugriff auf die Daten – wenn es den Key nicht gibt, bleibt es der Default
-            aktuelle_spieler = kader_daten.get(db_key, [])
-            
-            if not aktuelle_spieler:
-                st.warning(f"Keine Spielerdaten gefunden für: {db_key}")
-            else:
-                col_ts1, col_ts2, col_ts3 = st.columns(3)
-                with col_ts1:
-                    st.markdown("**Trifft in 1. HZ:**")
-                    for spieler, t_anteil, _ in aktuelle_spieler:
-                        prob_hz1 = 1 - math.exp(-(exp_hz1 * t_anteil))
-                        st.write(f"- {spieler}: **{prob_hz1:.1%}**")
-                with col_ts2:
-                    st.markdown("**Trifft in 2. HZ:**")
-                    for spieler, t_anteil, _ in aktuelle_spieler:
-                        prob_hz2 = 1 - math.exp(-(exp_hz2 * t_anteil))
-                        st.write(f"- {spieler}: **{prob_hz2:.1%}**")
-                with col_ts3:
-                    st.markdown("**Karte (Anytime):**")
-                    for spieler, _, k_anteil in aktuelle_spieler:
-                        prob_karte = 1 - math.exp(-(exp_cards_team * k_anteil))
-                        st.write(f"- {spieler}: **{prob_karte:.1%}**")
+    st.subheader("🎯 Spieler-Spezialmärkte (Tore & Karten)")
+    
+    # Mapping der API-Namen auf deine Datenbank-Keys
+    name_mapping = {
+        "Germany": "Deutschland", "Ivory Coast": "Elfenbeinküste", "Netherlands": "Niederlande",
+        "Argentina": "Argentinien", "France": "Frankreich", "Brazil": "Brasilien",
+        "Spain": "Spanien", "England": "England", "Canada": "Kanada", "USA": "USA"
+    }
+    
+    db_key = name_mapping.get(team_name, team_name)
+    aktuelle_spieler = kader_daten.get(db_key, [])
+    
+    if not aktuelle_spieler:
+        st.info(f"Für {team_name} (API: {team_name}) sind aktuell keine Spielerprofile hinterlegt.")
+    else:
+        col_ts1, col_ts2, col_ts3 = st.columns(3)
+        with col_ts1:
+            st.markdown("**Trifft in 1. HZ:**")
+            for spieler, t_anteil, _ in aktuelle_spieler:
+                prob_hz1 = 1 - math.exp(-(exp_hz1 * t_anteil))
+                st.write(f"- {spieler}: **{prob_hz1:.1%}**")
+        with col_ts2:
+            st.markdown("**Trifft in 2. HZ:**")
+            for spieler, t_anteil, _ in aktuelle_spieler:
+                prob_hz2 = 1 - math.exp(-(exp_hz2 * t_anteil))
+                st.write(f"- {spieler}: **{prob_hz2:.1%}**")
+        with col_ts3:
+            st.markdown("**Karte (Anytime):**")
+            for spieler, _, k_anteil in aktuelle_spieler:
+                prob_karte = 1 - math.exp(-(exp_cards_team * k_anteil))
+                st.write(f"- {spieler}: **{prob_karte:.1%}**")
 
         # AUFRUF DER FUNKTIONEN (Muss auf der gleichen Ebene wie 'with tab_heim' stehen)
         with tab_heim:
