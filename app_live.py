@@ -61,7 +61,7 @@ else:
                         if isinstance(raw_data[key], dict) and 'matches' in raw_data[key]:
                             alle_spiele = raw_data[key]['matches']
                         elif isinstance(raw_data[key], list):
-                            alle_spiele = raw_data[key]
+                            alle_spiele = raw_data[key orient]
                 
                 if not alle_spiele and isinstance(raw_data, list):
                     alle_spiele = raw_data
@@ -69,12 +69,10 @@ else:
                 wm_spiele = []
                 for s in alle_spiele:
                     try:
-                        # Liga-Name prüfen (Sollte World Cup / Weltmeisterschaft sein)
                         liga_name = str(s.get('league', {}).get('name', s.get('leagueName', ''))).lower()
                         
-                        # FILTER: Nur echte WM-Spiele zulassen (oder Test-Zwecke während der Quali)
-                        # Um die App heute direkt zu testen, lassen wir 'world cup' oder Top-Nationen als Filter zu
-                        if 'world cup' in liga_name or 'wm' in liga_name or any(t in str(s) for t in ["Netherlands", "Sweden", "Germany", "USA"]):
+                        # FILTER: Nur echte WM-Spiele zulassen oder deine ausgewählten Teams zum Testen
+                        if 'world cup' in liga_name or 'wm' in liga_name or any(t in str(s) for t in ["Netherlands", "Sweden", "Germany", "USA", "Australia"]):
                             match_id = s.get('id') or s.get('matchId')
                             teams_obj = s.get('teams', s)
                             h_name = teams_obj.get('home', {}).get('name', teams_obj.get('homeName'))
@@ -90,14 +88,13 @@ else:
                     except:
                         pass
                 
-                # SORTIERUNG nach Uhrzeit/Status-String
                 wm_spiele.sort(key=lambda x: x['time'])
                 return wm_spiele
         except:
             pass
         return []
 
-    with St.spinner("Filtere exklusive WM-Spiele des Tages..."):
+    with st.spinner("Filtere exklusive WM-Spiele des Tages..."):
         spiele_liste = hole_sortierte_wm_spiele()
 
     spiele_auswahl = [s["label"] for s in spiele_liste]
@@ -133,11 +130,9 @@ else:
     if st.button("Vollständige Experten-Analyse starten 🚀", type="primary", use_container_width=True):
         kader_h, kader_a = hole_kader(spiel_daten["id"])
 
-        # Basis-Formen holen
         r_h = base_ratings.get(heimteam, {"att": 1.4, "def": 1.0})
         r_a = base_ratings.get(auswaertsteam, {"att": 1.2, "def": 1.1})
 
-        # Dynamische Live-Faktoren berechnen
         def_faktor_h, att_faktor_h = 1.0, 1.0
         def_faktor_a, att_faktor_a = 1.0, 1.0
         
@@ -148,11 +143,9 @@ else:
             def_a = sum(1 for _, pos in kader_a if 'D' in str(pos).upper())
             def_faktor_a = 1.0 if def_a >= 4 else 1.15
 
-        # Erwartungswerte Tore Vollzeit (FT)
         exp_h = r_h["att"] * (1.0 / r_a["def"]) * att_faktor_h
         exp_a = r_a["att"] * (1.0 / r_h["def"]) * def_faktor_a
 
-        # 6x6 Matrix aufbauen
         max_tore = 6
         matrix = np.zeros((max_tore, max_tore))
         for h in range(max_tore):
@@ -163,13 +156,8 @@ else:
         remis = np.sum(np.diag(matrix))
         sieg_a = np.sum(np.triu(matrix, 1))
 
-        # ==========================================
-        # AB HIER: DIE ORIGINALE GRUND-APP STRUKTUR
-        # ==========================================
-        
         st.success(f"### 📊 Volles Analyse-Zertifikat: {heimteam} vs. {auswaertsteam}")
         
-        # 1. Hauptmärkte (1X2 Tendenzen)
         col1, col2, col3 = st.columns(3)
         col1.metric(f"Sieg {heimteam} (1)", f"{sieg_h:.1%}")
         col2.metric("Unentschieden (X)", f"{remis:.1%}")
@@ -177,7 +165,6 @@ else:
 
         st.write("---")
 
-        # 2. Tore-Märkte (Over / Under) & BTTS
         st.subheader("⚽ Tor-Märkte Prognose")
         c_over1, c_over2 = st.columns(2)
         
@@ -188,7 +175,6 @@ else:
                 st.write(f"- Über {limit} Tore: **{prob_over:.1%}** | Unter {limit}: **{(1-prob_over):.1%}**")
                 
         with c_over2:
-            # Beide treffen (BTTS) = 100% minus (Heim 0 Tore ODER Auswärts 0 Tore)
             btts_nein = poisson_wahrscheinlichkeit(0, exp_h) + poisson_wahrscheinlichkeit(0, exp_a) - (poisson_wahrscheinlichkeit(0, exp_h) * poisson_wahrscheinlichkeit(0, exp_a))
             btts_ja = max(0.0, 1.0 - btts_nein)
             st.markdown("**Beide Teams treffen? (BTTS):**")
@@ -197,21 +183,18 @@ else:
 
         st.write("---")
 
-        # 3. Exakte Ergebnisse als strukturierte Tabelle
         st.subheader("🎯 Top 5 der wahrscheinlichsten exakten Ergebnisse")
         ergebnisse = []
         for h in range(4):
             for a in range(4):
                 ergebnisse.append((f"{h} : {a}", matrix[h, a]))
         
-        # Sortieren nach Wahrscheinlichkeit
         ergebnisse.sort(key=lambda x: x[1], reverse=True)
         
         cols_ergebnis = st.columns(5)
         for i, (erg, chance) in enumerate(ergebnisse[:5]):
             cols_ergebnis[i].button(f"{erg}\n({chance:.1%})", disabled=True, use_container_width=True)
 
-        # 4. Live-Lineup Detail-Sektion ganz unten
         if kader_h:
             st.write("---")
             with st.expander("🔍 Berücksichtigte Live-Kaderdaten einsehen"):
