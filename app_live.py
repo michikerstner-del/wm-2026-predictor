@@ -37,47 +37,60 @@ else:
         "X-RapidAPI-Host": "free-api-live-football-data.p.rapidapi.com"
     }
 
-    # 1. ALLE SPIELE DES TAGES LADEN (VOR UND WÄHREND DES SPIELS)
-    @st.cache_data(ttl=60) # 1 Minute Cache
+    # 1. ALLE SPIELE DES TAGES LADEN (ROBUSTE STRUKTUR-ANALYSE)
+    @st.cache_data(ttl=30)
     def hole_alle_heutigen_spiele():
         url = "https://free-api-live-football-data.p.rapidapi.com/football-get-matches-by-date"
-        # Holt das aktuelle Datum im Format YYYYMMDD (z.B. 20260620)
         heute_str = datetime.date.today().strftime('%Y%m%d')
         querystring = {"date": heute_str}
         
         try:
             response = requests.get(url, headers=headers, params=querystring)
             if response.status_code == 200:
-                # Die API gibt die Spiele meistens in einer Liste unter 'response' oder 'matches' zurück
-                daten = response.json().get('response', [])
-                if not daten and isinstance(response.json().get('data'), list):
-                    daten = response.json().get('data')
-                return daten, "OK"
+                raw_data = response.json()
+                
+                # Flexibles Suchen in der API-Antwort
+                for key in ['response', 'data', 'matches', 'result']:
+                    if key in raw_data and raw_data[key]:
+                        # Falls die Spiele noch tiefer verschachtelt sind (z.B. data['matches'])
+                        if isinstance(raw_data[key], dict) and 'matches' in raw_data[key]:
+                            return raw_data[key]['matches'], "OK", None
+                        if isinstance(raw_data[key], list):
+                            return raw_data[key], "OK", None
+                
+                # Falls die API die Liste direkt auf der obersten Ebene zurückgibt
+                if isinstance(raw_data, list):
+                    return raw_data, "OK", None
+                    
+                return [], "Struktur unbekannt", raw_data
+            else:
+                return [], f"HTTP-Fehler {response.status_code}", None
         except Exception as e:
-            return [], str(e)
-        return [], "Keine Spiele gefunden"
+            return [], f"Exception: {str(e)}", None
 
-    with st.spinner("Lade den heutigen Spielplan (inklusive anstehender Spiele)..."):
-        spiele, api_status = hole_alle_heutigen_spiele()
+    with st.spinner("Lade den heutigen Spielplan aus der API..."):
+        spiele, api_status, rohe_antwort = hole_alle_heutigen_spiele()
 
     spiele_auswahl = []
     spiele_mapping = {}
 
-    if spiele:
+    if api_status == "OK" and spiele:
         for s in spiele:
             try:
-                # Anpassung an die typische Struktur deiner API für Tages-Spiele
                 match_id = s.get('id') or s.get('matchId') or s.get('idMatch')
-                h_name = s['teams']['home']['name']
-                a_name = s['teams']['away']['name']
                 
-                # Startzeit oder Status auslesen
-                status = s.get('status', {}).get('type', '')
-                time_str = s.get('time', '') or s.get('status', {}).get('statusStr', 'Anstehend')
+                # Sicheres Auslesen der Teamnamen bei unterschiedlichen Feldnamen
+                teams_obj = s.get('teams', s)
+                h_name = teams_obj.get('home', {}).get('name', teams_obj.get('homeName'))
+                a_name = teams_obj.get('away', {}).get('name', teams_obj.get('awayName'))
                 
-                label = f"[{time_str}] {h_name} vs. {a_name}"
-                spiele_auswahl.append(label)
-                spiele_mapping[label] = {"id": match_id, "home": h_name, "away": a_name}
+                status_obj = s.get('status', {})
+                time_str = s.get('time', status_obj.get('statusStr', 'Anstehend'))
+                
+                if h_name and a_name:
+                    label = f"[{time_str}] {h_name} vs. {a_name}"
+                    spiele_auswahl.append(label)
+                    spiele_mapping[label] = {"id": match_id, "home": h_name, "away": a_name}
             except:
                 pass
 
@@ -86,7 +99,14 @@ else:
 
     if modus == "Echtzeit Live-Kader Simulation (API)":
         if not spiele_auswahl:
-            st.warning("Keine Spiele für das aktuelle Datum in der API gefunden. Nutze den manuellen Modus oder den Dummy:")
+            st.warning("Keine Spiele im System erkannt.")
+            
+            # Diagnose-Output für dich, falls die Liste leer bleibt
+            if rohe_antwort:
+                with st.expander("🛠 API-Diagnose (Technische Details anzeigen)"):
+                    st.write("Die API hat geantwortet, aber das Format unterscheidet sich. Rohe Daten:")
+                    st.json(rohe_antwort)
+            
             spiele_auswahl = ["Test-Spiel: Deutschland vs. Frankreich"]
             spiele_mapping["Test-Spiel: Deutschland vs. Frankreich"] = {"id": "dummy", "home": "Deutschland", "away": "Frankreich"}
         
@@ -101,7 +121,7 @@ else:
         with col_sel2: auswaertsteam = st.selectbox("Auswärtsteam wählen:", teams_liste, index=1)
         spiel_daten = {"id": None}
 
-    # 2. LINEUP-ABRUF (Sucht nach der Startelf vor dem Spiel)
+    # 2. LINEUP-ABRUF
     def hole_kader(match_id):
         if not match_id or match_id == "dummy":
             return [], []
@@ -109,7 +129,9 @@ else:
         try:
             res = requests.get(url, headers=headers, params={"matchid": match_id})
             if res.status_code == 200:
-                lineups = res.json().get('response', {}).get('lineup', [])
+                raw_lineup = res.json()
+                # Sucht nach dem Lineup-Array
+                lineups = raw_lineup.get('response', raw_lineup.get('data', {})).get('lineup', [])
                 if len(lineups) >= 2:
                     k_h = [(p['player']['name'], p['player'].get('position', 'M')) for p in lineups[0].get('startXI', [])]
                     k_a = [(p['player']['name'], p['player'].get('position', 'M')) for p in lineups[1].get('startXI', [])]
@@ -124,7 +146,6 @@ else:
         r_h = base_ratings.get(heimteam, {"att": 1.4, "def": 1.0})
         r_a = base_ratings.get(auswaertsteam, {"att": 1.2, "def": 1.1})
 
-        # Dynamischer Taktik-Faktor durch echten Kader (Falls Aufstellung ca. 30 Min vor Anpfiff geladen wird)
         def_faktor_h = 1.0
         if kader_h:
             def_h = sum(1 for _, pos in kader_h if 'D' in str(pos).upper())
@@ -144,23 +165,13 @@ else:
         sieg_a = np.sum(np.triu(matrix, 1))
 
         st.success("### 📊 Analyse-Ergebnis (Gemittelte Quellen)")
-        
         c1, c2, c3 = st.columns(3)
         c1.metric(f"Sieg {heimteam}", f"{sieg_h:.1%}")
         c2.metric("Unentschieden", f"{remis:.1%}")
         c3.metric(f"Sieg {auswaertsteam}", f"{sieg_a:.1%}")
 
-        # Feedback-Meldung zum Kader-Status vor dem Spiel
         st.write("---")
         if kader_h:
             st.info("📌 Die offiziellen Startaufstellungen wurden rechtzeitig vor Spielbeginn erkannt und sind in die Berechnung eingeflossen!")
-            with st.expander("🔍 Eingeflossene Live-Aufstellungen anzeigen"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown(f"**{heimteam}:**")
-                    for n, p in kader_h: st.write(f"- `{p}` {n}")
-                with col2:
-                    st.markdown(f"**{auswaertsteam}:**")
-                    for n, p in kader_a: st.write(f"- `{p}` {n}")
         else:
-            st.warning("⚠️ Die offiziellen Startaufstellungen sind für dieses Spiel noch nicht von der FIFA/Liga freigegeben (meistens 45-30 Min. vor Anpfiff der Fall). Die App rechnet aktuell mit den historischen Stamm-Ratings.")
+            st.warning("⚠️ Die offiziellen Startaufstellungen sind für dieses Spiel noch nicht freigegeben. Die App rechnet aktuell mit den historischen Stamm-Ratings.")
