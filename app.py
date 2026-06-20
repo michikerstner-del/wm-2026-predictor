@@ -6,7 +6,7 @@ import sys
 try:
     import scipy.stats as stats
 except ModuleNotFoundError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "scipy"])
+subprocess.check_call([sys.executable, "-m", "pip", "install", "scipy", "--user"])
     import scipy.stats as stats
 
 import streamlit as st
