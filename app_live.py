@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import numpy as np
 import math
+import datetime
 
 # --- POISSON & STATISTIK FUNKTIONEN ---
 def poisson_wahrscheinlichkeit(k, lam):
@@ -9,20 +10,16 @@ def poisson_wahrscheinlichkeit(k, lam):
         return 1.0 if k == 0 else 0.0
     return (lam**k * math.exp(-lam)) / math.factorial(k)
 
-def prob_mindestens_tore(bereiche, lam):
-    prob_weniger = sum(poisson_wahrscheinlichkeit(i, lam) for i in range(bereiche))
-    return max(0.0, min(1.0, 1.0 - prob_weniger))
-
 st.set_page_config(page_title="WM 2026 Multi-Source Live Simulator", page_icon="🏆", layout="wide")
 
 st.title("🏆 WM 2026 Multi-Source Live Simulator")
-st.markdown("Diese App berechnet Vorhersagen aus dem Durchschnitt historischer Stärken und aktuellen Live-Kaderdaten!")
+st.markdown("Diese App lädt alle heutigen Spiele **vor Anpfiff** und gleicht die Aufstellungen live ab!")
 
 # Sidebar für API-Konfiguration
 st.sidebar.header("🔑 API-Konfiguration")
 api_key = st.sidebar.text_input("Gib deinen RapidAPI-Key ein:", type="password")
 
-# --- HISTORISCHE BASIS-RATINGS (Aus deiner Haupt-App) ---
+# --- HISTORISCHE BASIS-RATINGS ---
 base_ratings = {
     "Deutschland": {"att": 1.6, "def": 0.9},
     "Argentinien": {"att": 1.5, "def": 0.8},
@@ -33,67 +30,78 @@ base_ratings = {
 }
 
 if not api_key:
-    st.info("Bitte gib deinen RapidAPI-Key in der linken Sidebar ein, um Live-Daten freizuschalten.")
+    st.info("Bitte gib deinen RapidAPI-Key in der linken Sidebar ein, um die heutigen Live-Daten freizuschalten.")
 else:
     headers = {
         "X-RapidAPI-Key": api_key,
         "X-RapidAPI-Host": "free-api-live-football-data.p.rapidapi.com"
     }
 
-    # 1. LIVE-SPIELE LADEN
-    @st.cache_data(ttl=15)
-    def hole_aktuelle_live_spiele():
-        url = "https://free-api-live-football-data.p.rapidapi.com/football-current-live"
+    # 1. ALLE SPIELE DES TAGES LADEN (VOR UND WÄHREND DES SPIELS)
+    @st.cache_data(ttl=60) # 1 Minute Cache
+    def hole_alle_heutigen_spiele():
+        url = "https://free-api-live-football-data.p.rapidapi.com/football-get-matches-by-date"
+        # Holt das aktuelle Datum im Format YYYYMMDD (z.B. 20260620)
+        heute_str = datetime.date.today().strftime('%Y%m%d')
+        querystring = {"date": heute_str}
+        
         try:
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, params=querystring)
             if response.status_code == 200:
-                return response.json().get('response', {}).get('live', []), "OK"
-        except:
-            pass
-        return [], "Keine Verbindung"
+                # Die API gibt die Spiele meistens in einer Liste unter 'response' oder 'matches' zurück
+                daten = response.json().get('response', [])
+                if not daten and isinstance(response.json().get('data'), list):
+                    daten = response.json().get('data')
+                return daten, "OK"
+        except Exception as e:
+            return [], str(e)
+        return [], "Keine Spiele gefunden"
 
-    spiele, api_status = hole_aktuelle_live_spiele()
+    with st.spinner("Lade den heutigen Spielplan (inklusive anstehender Spiele)..."):
+        spiele, api_status = hole_alle_heutigen_spiele()
+
     spiele_auswahl = []
     spiele_mapping = {}
 
     if spiele:
         for s in spiele:
             try:
-                match_id = s.get('id') or s.get('matchId')
+                # Anpassung an die typische Struktur deiner API für Tages-Spiele
+                match_id = s.get('id') or s.get('matchId') or s.get('idMatch')
                 h_name = s['teams']['home']['name']
                 a_name = s['teams']['away']['name']
-                label = f"🔴 LIVE: {h_name} vs. {a_name}"
+                
+                # Startzeit oder Status auslesen
+                status = s.get('status', {}).get('type', '')
+                time_str = s.get('time', '') or s.get('status', {}).get('statusStr', 'Anstehend')
+                
+                label = f"[{time_str}] {h_name} vs. {a_name}"
                 spiele_auswahl.append(label)
                 spiele_mapping[label] = {"id": match_id, "home": h_name, "away": a_name}
             except:
                 pass
 
     st.subheader("🔮 Berechne ein Spiel")
-
-    # Modus-Auswahl: Falls kein Spiel live ist, kannst du manuell wie gewohnt simulieren!
-    modus = st.radio("Simulations-Modus wählen:", ["Manuelle Simulation (Historisch)", "Echtzeit Live-Kader Simulation (API)"])
+    modus = st.radio("Simulations-Modus wählen:", ["Echtzeit Live-Kader Simulation (API)", "Manuelle Simulation (Historisch)"])
 
     if modus == "Echtzeit Live-Kader Simulation (API)":
         if not spiele_auswahl:
-            st.warning("Aktuell sind keine Live-Spiele in der API aktiv. Nutze den manuellen Modus oder teste mit dem Dummy:")
+            st.warning("Keine Spiele für das aktuelle Datum in der API gefunden. Nutze den manuellen Modus oder den Dummy:")
             spiele_auswahl = ["Test-Spiel: Deutschland vs. Frankreich"]
             spiele_mapping["Test-Spiel: Deutschland vs. Frankreich"] = {"id": "dummy", "home": "Deutschland", "away": "Frankreich"}
         
-        gewaehltes_spiel = st.selectbox("Wähle ein aktives Live-Spiel:", spiele_auswahl)
+        gewaehltes_spiel = st.selectbox("Wähle ein anstehendes oder laufendes Spiel des Tages:", spiele_auswahl)
         spiel_daten = spiele_mapping[gewaehltes_spiel]
         heimteam = spiel_daten["home"]
         auswaertsteam = spiel_daten["away"]
     else:
-        # Klassische Auswahl aus deiner Haupt-App
         teams_liste = sorted(list(base_ratings.keys()))
         col_sel1, col_sel2 = st.columns(2)
-        with col_sel1:
-            heimteam = st.selectbox("Heimteam wählen:", teams_liste, index=0)
-        with col_sel2:
-            auswaertsteam = st.selectbox("Auswärtsteam wählen:", teams_liste, index=1)
+        with col_sel1: heimteam = st.selectbox("Heimteam wählen:", teams_liste, index=0)
+        with col_sel2: auswaertsteam = st.selectbox("Auswärtsteam wählen:", teams_liste, index=1)
         spiel_daten = {"id": None}
 
-    # 2. LINEUP-ABRUF
+    # 2. LINEUP-ABRUF (Sucht nach der Startelf vor dem Spiel)
     def hole_kader(match_id):
         if not match_id or match_id == "dummy":
             return [], []
@@ -113,22 +121,18 @@ else:
     if st.button("Multi-Source-Simulation starten 🎲", type="primary", use_container_width=True):
         kader_h, kader_a = hole_kader(spiel_daten["id"])
 
-        # Basis-Ratings holen (oder Standardwerte falls Team unbekannt in der API)
-        r_h = base_ratings.get(heimteam, {"att": 1.3, "def": 1.0})
+        r_h = base_ratings.get(heimteam, {"att": 1.4, "def": 1.0})
         r_a = base_ratings.get(auswaertsteam, {"att": 1.2, "def": 1.1})
 
-        # Dynamischer Taktik-Faktor durch echten Kader (falls vorhanden)
+        # Dynamischer Taktik-Faktor durch echten Kader (Falls Aufstellung ca. 30 Min vor Anpfiff geladen wird)
         def_faktor_h = 1.0
-        att_faktor_h = 1.0
         if kader_h:
             def_h = sum(1 for _, pos in kader_h if 'D' in str(pos).upper())
             def_faktor_h = 1.0 if def_h >= 4 else 1.15
 
-        # Berechnung der Erwartungswerte (Poisson-Schnittstelle)
-        exp_h = r_h["att"] * (1.0 / r_a["def"]) * att_faktor_h
+        exp_h = r_h["att"] * (1.0 / r_a["def"])
         exp_a = r_a["att"] * (1.0 / r_h["def"]) * def_faktor_h
 
-        # Matrix aufbauen
         max_tore = 6
         matrix = np.zeros((max_tore, max_tore))
         for h in range(max_tore):
@@ -139,33 +143,24 @@ else:
         remis = np.sum(np.diag(matrix))
         sieg_a = np.sum(np.triu(matrix, 1))
 
-        # Bestimmung des wahrscheinlichsten exakten Ergebnisses
-        h_max, a_max = np.unravel_index(np.argmax(matrix), matrix.shape)
-        chance_max = matrix[h_max, a_max]
-
-        # --- AUSGABE IM GEWOHNTEN DESIGN (Dein Bild 2) ---
         st.success("### 📊 Analyse-Ergebnis (Gemittelte Quellen)")
         
-        st.markdown(f"Sieg {heimteam}")
-        st.system_heading = False
-        st.subheader(f"**{sieg_h:.1%}**")
-        
-        st.markdown("Unentschieden")
-        st.subheader(f"**{remis:.1%}**")
-        
-        st.markdown(f"Sieg {auswaertsteam}")
-        st.subheader(f"**{sieg_a:.1%}**")
-        
-        st.write("---")
-        st.markdown(f"🎯 **Wahrscheinlichstes exaktes Ergebnis:** {h_max} : {a_max} (Chance: {chance_max:.1%})")
+        c1, c2, c3 = st.columns(3)
+        c1.metric(f"Sieg {heimteam}", f"{sieg_h:.1%}")
+        c2.metric("Unentschieden", f"{remis:.1%}")
+        c3.metric(f"Sieg {auswaertsteam}", f"{sieg_a:.1%}")
 
-        # Falls echte Kader geladen wurden, zeigen wir sie diskret darunter an
+        # Feedback-Meldung zum Kader-Status vor dem Spiel
+        st.write("---")
         if kader_h:
+            st.info("📌 Die offiziellen Startaufstellungen wurden rechtzeitig vor Spielbeginn erkannt und sind in die Berechnung eingeflossen!")
             with st.expander("🔍 Eingeflossene Live-Aufstellungen anzeigen"):
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.bold(f"{heimteam}:")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(f"**{heimteam}:**")
                     for n, p in kader_h: st.write(f"- `{p}` {n}")
-                with c2:
-                    st.bold(f"{auswaertsteam}:")
+                with col2:
+                    st.markdown(f"**{auswaertsteam}:**")
                     for n, p in kader_a: st.write(f"- `{p}` {n}")
+        else:
+            st.warning("⚠️ Die offiziellen Startaufstellungen sind für dieses Spiel noch nicht von der FIFA/Liga freigegeben (meistens 45-30 Min. vor Anpfiff der Fall). Die App rechnet aktuell mit den historischen Stamm-Ratings.")
