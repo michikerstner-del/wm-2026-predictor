@@ -2,11 +2,11 @@ import os
 import subprocess
 import sys
 
-# AUTOMATISCHER INSTALLER: Installiert scipy direkt beim App-Start, falls es fehlt!
+# AUTOMATISCHER INSTALLER: Mit korrekter Einrückung für Python
 try:
     import scipy.stats as stats
 except ModuleNotFoundError:
-subprocess.check_call([sys.executable, "-m", "pip", "install", "scipy", "--user"])
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "scipy", "--user"])
     import scipy.stats as stats
 
 import streamlit as st
