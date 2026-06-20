@@ -308,16 +308,25 @@ else:
             st.subheader("🛡 Handicap-Absicherung")
             st.write(f"- Verliert nicht mit mehr als **1 Tor** Abstand: **{hc_daten[1]:.1%}** | **2 Toren**: **{hc_daten[2]:.1%}** | **3 Toren**: **{hc_daten[3]:.1%}**")
 
-            st.subheader("🎯 Spieler-Spezialmärkte (Tore & Karten)")
+                        st.subheader("🎯 Spieler-Spezialmärkte (Tore & Karten)")
             
-            # Entscheidung: API-Kader nutzen oder Fallback
+            # 1. Versuch: API-Daten nutzen
             if (team_name == heim and kader_h) or (team_name == auswaerts and kader_a):
                 kader_quelle = kader_h if team_name == heim else kader_a
+                # Wir nehmen den Namen und weisen einen Standard-Faktor von 0.15 zu
                 aktuelle_spieler = [(name, 0.15, 0.15) for name, _ in kader_quelle]
+            
+            # 2. Versuch: Wenn keine API-Daten, dann Fallback auf deine manuelle Liste
             else:
-                aktuelle_spieler = kader_daten.get(team_name, [('Statistischer Spieler', 0.05, 0.10)])
+                if team_name in kader_daten:
+                    aktuelle_spieler = kader_daten[team_name]
+                else:
+                    # Absoluter Notfall-Fallback
+                    aktuelle_spieler = [('Spielerdaten nicht verfügbar', 0.05, 0.10)]
             
             col_ts1, col_ts2, col_ts3 = st.columns(3)
+            # ... (Rest der Anzeige bleibt identisch)
+
             with col_ts1:
                 st.markdown("**Trifft in 1. HZ:**")
                 for spieler, t_anteil, _ in aktuelle_spieler:
