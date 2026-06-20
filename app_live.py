@@ -283,22 +283,39 @@ else:
                 st.markdown("**2. Halbzeit - Tore Gesamt**")
                 st.write(f"- Mindestens 1+ Tore: **{prob_mindestens_tore(1, exp_total_hz2):.1%}** | 2+ Tore: **{prob_mindestens_tore(2, exp_total_hz2):.1%}** | 3+ Tore: **{prob_mindestens_tore(3, exp_total_hz2):.1%}**")
 
-            def generiere_team_ansicht(team_name, exp_ft, exp_hz1, exp_hz2, e_ft, e_hz1, e_hz2, exp_cards_team, hc_daten):
-            # ... (vorheriger Code bleibt gleich) ...
+        def generiere_team_ansicht(team_name, exp_ft, exp_hz1, exp_hz2, e_ft, e_hz1, e_hz2, exp_cards_team, hc_daten):
+            st.subheader(f"⚽ Gesamt-Tore für {team_name} (90 Min)")
+            st.write(f"- Mindestens 1+ Tor im Spiel: **{prob_mindestens_tore(1, exp_ft):.1%}**")
+            st.write(f"- Mindestens 2+ Tore im Spiel: **{prob_mindestens_tore(2, exp_ft):.1%}**")
+            st.write(f"- Mindestens 3+ Tore im Spiel: **{prob_mindestens_tore(3, exp_ft):.1%}**")
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown(f"**Tore 1 HZ ({team_name})**")
+                st.write(f"- 1+ Teamtor: **{prob_mindestens_tore(1, exp_hz1):.1%}**")
+                st.write(f"- 2+ Teamtore: **{prob_mindestens_tore(2, exp_hz1):.1%}**")
+            with c2:
+                st.markdown(f"**Tore 2 HZ ({team_name})**")
+                st.write(f"- 1+ Teamtor: **{prob_mindestens_tore(1, exp_hz2):.1%}**")
+                st.write(f"- 2+ Teamtore: **{prob_mindestens_tore(2, exp_hz2):.1%}**")
+                
+            st.subheader(f"🏳️ Ecken-Prognose für {team_name}")
+            ce1, ce2, ce3 = st.columns(3)
+            ce1.metric("Ecken 1. HZ", f"{e_hz1:.1f}")
+            ce2.metric("Ecken 2. HZ", f"{e_hz2:.1f}")
+            ce3.metric("Ecken Gesamt (90 Min)", f"{e_ft:.1f}")
+
+            st.subheader("🛡 Handicap-Absicherung")
+            st.write(f"- Verliert nicht mit mehr als **1 Tor** Abstand: **{hc_daten[1]:.1%}** | **2 Toren**: **{hc_daten[2]:.1%}** | **3 Toren**: **{hc_daten[3]:.1%}**")
 
             st.subheader("🎯 Spieler-Spezialmärkte (Tore & Karten)")
             
-            # WICHTIG: Hier holen wir die Namen aus dem Dictionary, wenn live_kader leer ist
-            # Wenn live_kader existiert, werden die Namen aus der API genommen
-            # Wir definieren hier die Quelle für die Namen:
-            if kader_h and team_name == heim:
-                aktuelle_spieler = [(name, 0.15, 0.15) for name, pos in kader_h] # API-Namen
-            elif kader_a and team_name == auswaerts:
-                aktuelle_spieler = [(name, 0.15, 0.15) for name, pos in kader_a] # API-Namen
+            # Entscheidung: API-Kader nutzen oder Fallback
+            if (team_name == heim and kader_h) or (team_name == auswaerts and kader_a):
+                kader_quelle = kader_h if team_name == heim else kader_a
+                aktuelle_spieler = [(name, 0.15, 0.15) for name, _ in kader_quelle]
             else:
-                aktuelle_spieler = kader_daten.get(team_name, [
-                    ('Spielername nicht geladen', 0.05, 0.10)
-                ])
+                aktuelle_spieler = kader_daten.get(team_name, [('Statistischer Spieler', 0.05, 0.10)])
             
             col_ts1, col_ts2, col_ts3 = st.columns(3)
             with col_ts1:
@@ -317,20 +334,9 @@ else:
                     prob_karte = 1 - math.exp(-(exp_cards_team * k_anteil))
                     st.write(f"- {spieler}: **{prob_karte:.1%}**")
 
+        # AUFRUF DER FUNKTIONEN (Muss auf der gleichen Ebene wie 'with tab_heim' stehen)
         with tab_heim:
             generiere_team_ansicht(heim, exp_h_ft, exp_h_hz1, exp_h_hz2, exp_ecken_h_ft, exp_ecken_h_hz1, exp_ecken_h_hz2, exp_karten_h, hc_heim)
             
         with tab_auswaerts:
             generiere_team_ansicht(auswaerts, exp_a_ft, exp_a_hz1, exp_a_hz2, exp_ecken_a_ft, exp_ecken_a_hz1, exp_ecken_a_hz2, exp_karten_a, hc_ausw)
-
-        # Diskretes Einsehen der Live-Lineups falls vorhanden
-        if kader_h:
-            st.write("---")
-            with st.expander("🔍 Offizielle Live-Aufstellungen aus der API anzeigen"):
-                col_k1, col_k2 = st.columns(2)
-                with col_k1:
-                    st.markdown(f"**Startelf {heim}:**")
-                    for n, p in kader_h: st.write(f"- `{p}` {n}")
-                with col_k2:
-                    st.markdown(f"**Startelf {auswaerts}:**")
-                    for n, p in kader_a: st.write(f"- `{p}` {n}")
