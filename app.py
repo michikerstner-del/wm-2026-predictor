@@ -16,7 +16,7 @@ def prob_mindestens_tore(bereiche, lam):
 st.set_page_config(page_title="WM 2026 Ultimate Simulator", page_icon="🏆", layout="wide")
 
 st.title("🏆 WM 2026 Ultimate Expert Simulator")
-st.markdown("Das komplette Analyse-Paket inklusive Spieler-Karten und Handicap-Absicherungen.")
+st.markdown("Das vollendete Analyse-Paket inklusive HZ-Ecken, HZ1-Torschützen und kompletter Over/Under-Übersicht.")
 
 # 1. Datenbank aller 48 WM-Teilnehmer 2026
 gruppen_daten = {
@@ -47,7 +47,7 @@ base_ratings = {
     'USA': {'att': 1.3, 'def': 1.0, 'corners': 1.1, 'cards': 0.9},
 }
 
-# Kader-Datenbank mit Gewichtung für Tore und Karten (Name, Tor-Gewicht, Karten-Gewicht)
+# Kader-Datenbank mit Gewichtung für Tore und Karten
 kader_daten = {
     'Deutschland': [
         ('Joshua Kimmich', 0.03, 0.22), ('Jonathan Tah', 0.04, 0.25), ('Antonio Rüdiger', 0.05, 0.28),
@@ -88,7 +88,18 @@ if st.button("Umfassende Expert-Simulation starten 🎲", type="primary", use_co
     exp_a_hz2 = exp_a_ft * 0.55
     exp_total_hz2 = exp_h_hz2 + exp_a_hz2
 
-    # Matrizen für exakte Ergebnisse und Tendenzen generieren
+    # Ecken-Erwartungswerte (90 Min)
+    exp_ecken_h_ft = h['corners'] * 4.8
+    exp_ecken_a_ft = a['corners'] * 3.7
+    exp_ecken_total_ft = exp_ecken_h_ft + exp_ecken_a_ft
+
+    # Ecken-Aufteilung nach Hälften (1. HZ = 47%, 2. HZ = 53%)
+    exp_ecken_h_hz1, exp_ecken_h_hz2 = exp_ecken_h_ft * 0.47, exp_ecken_h_ft * 0.53
+    exp_ecken_a_hz1, exp_ecken_a_hz2 = exp_ecken_a_ft * 0.47, exp_ecken_a_ft * 0.53
+    exp_ecken_total_hz1 = exp_ecken_h_hz1 + exp_ecken_a_hz1
+    exp_ecken_total_hz2 = exp_ecken_h_hz2 + exp_ecken_a_hz2
+
+    # Matrizen generieren
     max_tore = 6
     matrix_ft = np.zeros((max_tore, max_tore))
     matrix_hz1 = np.zeros((max_tore, max_tore))
@@ -110,25 +121,27 @@ if st.button("Umfassende Expert-Simulation starten 🎲", type="primary", use_co
     hz1_h_tipp, hz1_a_tipp = np.unravel_index(matrix_hz1.argmax(), matrix_hz1.shape)
     hz2_h_tipp, hz2_a_tipp = np.unravel_index(matrix_hz2.argmax(), matrix_hz2.shape)
 
+    # Gesamttor-Wahrscheinlichkeiten (Über/Unter 1.5 - 4.5)
+    ou_stats = {}
+    for limit in [1.5, 2.5, 3.5, 4.5]:
+        over_prob = sum(matrix_ft[hc, ac] for hc in range(max_tore) for ac in range(max_tore) if hc + ac > limit)
+        ou_stats[limit] = {"over": over_prob, "under": 1.0 - over_prob}
+
     # Karten-Erwartungswerte
     exp_karten_h = h['cards'] * 2.0
     exp_karten_a = a['cards'] * 2.2
 
-    # HANDICAP-ABSCHERUNG RECHNEN (Verliert nicht mit mehr als X Toren Unterschied)
+    # Handicap-Absicherung
     def berechne_handicap_safe(matrix, fuer_heim=True):
         hc_ergebnisse = {}
-        for tore_abstand in range(1, 6): # 1 bis 5 Tore Abstand
+        for tore_abstand in range(1, 6):
             wahrscheinlichkeit = 0.0
             for hc in range(max_tore):
                 for ac in range(max_tore):
                     if fuer_heim:
-                        # Heim-Sieg, Remis ODER verliert, aber Abstand ist kleiner als das Handicap
-                        if hc >= ac or (ac - hc) < tore_abstand:
-                            wahrscheinlichkeit += matrix[hc, ac]
+                        if hc >= ac or (ac - hc) < tore_abstand: wahrscheinlichkeit += matrix[hc, ac]
                     else:
-                        # Auswärts-Sieg, Remis ODER verliert, aber Abstand ist kleiner als das Handicap
-                        if ac >= hc or (hc - ac) < tore_abstand:
-                            wahrscheinlichkeit += matrix[hc, ac]
+                        if ac >= hc or (hc - ac) < tore_abstand: wahrscheinlichkeit += matrix[hc, ac]
             hc_ergebnisse[tore_abstand] = wahrscheinlichkeit
         return hc_ergebnisse
 
@@ -137,10 +150,11 @@ if st.button("Umfassende Expert-Simulation starten 🎲", type="primary", use_co
 
     st.success("### 📊 Ultimative Simulationsergebnisse")
     
-    # TABELLEN-STRUKTUR
+    # REITER-STRUKTUR
     tab_gesamt, tab_heim, tab_auswaerts = st.tabs(["🌍 Gesamtspiel-Märkte", f"🏠 {heim} (Heim)", f"🚀 {auswaerts} (Auswärts)"])
     
     with tab_gesamt:
+        # 1. MAIN TENDENZ
         st.subheader("⚽ Gesamtspiel (90 Min) Tendenz & Ergebnis")
         c1, c2, c3 = st.columns(3)
         c1.metric(f"Sieg {heim} (FT)", f"{ft_h_sieg:.1%}")
@@ -150,6 +164,21 @@ if st.button("Umfassende Expert-Simulation starten 🎲", type="primary", use_co
         
         st.write("---")
 
+        # 2. KOMPLETTE OVER/UNDER TABELLE
+        st.subheader("📊 Gesamttor-Wahrscheinlichkeiten (Über / Unter)")
+        col_ou1, col_ou2, col_ou3, col_ou4 = st.columns(4)
+        with col_ou1:
+            st.metric("Tore über 1.5", f"{ou_stats[1.5]['over']:.1%}", f"Unter: {ou_stats[1.5]['under']:.1%}", delta_color="inverse")
+        with col_ou2:
+            st.metric("Tore über 2.5", f"{ou_stats[2.5]['over']:.1%}", f"Unter: {ou_stats[2.5]['under']:.1%}", delta_color="inverse")
+        with col_ou3:
+            st.metric("Tore über 3.5", f"{ou_stats[3.5]['over']:.1%}", f"Unter: {ou_stats[3.5]['under']:.1%}", delta_color="inverse")
+        with col_ou4:
+            st.metric("Tore über 4.5", f"{ou_stats[4.5]['over']:.1%}", f"Unter: {ou_stats[4.5]['under']:.1%}", delta_color="inverse")
+
+        st.write("---")
+
+        # 3. HALBZEIT TENDENZEN & ERGEBNISSE
         st.subheader("⏱ Halbzeit-Märkte im Vergleich")
         col_hz1, col_hz2 = st.columns(2)
         with col_hz1:
@@ -162,6 +191,15 @@ if st.button("Umfassende Expert-Simulation starten 🎲", type="primary", use_co
             st.markdown(f"🎯 **Exakter HZ2-Tipp:** {hz2_h_tipp} : {hz2_a_tipp} (Chance: {matrix_hz2[hz2_h_tipp, hz2_a_tipp]:.1%})")
             
         st.write("---")
+
+        # 4. ECKEN NACH HALBZEITEN (GESAMT)
+        st.subheader("🏳️ Ecken-Märkte (Gesamtspiel)")
+        col_ec1, col_ec2, col_ec3 = st.columns(3)
+        col_ec1.metric("Erwartete Ecken 1. HZ", f"{exp_ecken_total_hz1:.1f}")
+        col_ec2.metric("Erwartete Ecken 2. HZ", f"{exp_ecken_total_hz2:.1f}")
+        col_ec3.metric("Gesamtecken (90 Min)", f"{exp_ecken_total_ft:.1f}")
+            
+        st.write("---")
             
         st.subheader("⚽ Tor-Stufen pro Halbzeit (Gesamtspiel)")
         col_z1, col_z2 = st.columns(2)
@@ -172,7 +210,7 @@ if st.button("Umfassende Expert-Simulation starten 🎲", type="primary", use_co
             st.markdown("**2. Halbzeit - Tore Gesamt**")
             st.write(f"- Mindestens 1+ Tore: **{prob_mindestens_tore(1, exp_total_hz2):.1%}** | 2+ Tore: **{prob_mindestens_tore(2, exp_total_hz2):.1%}** | 3+ Tore: **{prob_mindestens_tore(3, exp_total_hz2):.1%}**")
 
-    def generiere_team_ansicht(team_name, exp_hz1, exp_hz2, corners, cards, exp_cards_team, hc_daten):
+    def generiere_team_ansicht(team_name, exp_hz1, exp_hz2, e_ft, e_hz1, e_hz2, cards, exp_cards_team, hc_daten):
         # 1. TOR-STUFEN
         st.subheader(f"⚽ Tor-Stufen für {team_name}")
         c1, c2 = st.columns(2)
@@ -183,39 +221,43 @@ if st.button("Umfassende Expert-Simulation starten 🎲", type="primary", use_co
             st.markdown("**2. Halbzeit**")
             st.write(f"- 1+ Teamtor: **{prob_mindestens_tore(1, exp_hz2):.1%}** | 2+ Teamtore: **{prob_mindestens_tore(2, exp_hz2):.1%}**")
             
-        # 2. HANDICAP-ABSICHERUNG
-        st.subheader("🛡 Handicap-Absicherung")
-        st.write(f"- Verliert nicht mit mehr als **1 Tor** Abstand: **{hc_daten[1]:.1%}**")
-        st.write(f"- Verliert nicht mit mehr als **2 Toren** Abstand: **{hc_daten[2]:.1%}**")
-        st.write(f"- Verliert nicht mit mehr als **3 Toren** Abstand: **{hc_daten[3]:.1%}**")
-        st.write(f"- Verliert nicht mit mehr als **4 Toren** Abstand: **{hc_daten[4]:.1%}**")
-        st.write(f"- Verliert nicht mit mehr als **5 Toren** Abstand: **{hc_daten[5]:.1%}**")
+        # 2. TEAM-ECKEN NACH ABSCHNITTEN
+        st.subheader(f"🏳️ Ecken-Prognose für {team_name}")
+        ce1, ce2, ce3 = st.columns(3)
+        ce1.metric("Ecken 1. HZ", f"{e_hz1:.1f}")
+        ce2.metric("Ecken 2. HZ", f"{e_hz2:.1f}")
+        ce3.metric("Ecken Gesamt (90 Min)", f"{e_ft:.1f}")
 
-        # 3. SPIELER STATS (TORE UND KARTEN)
+        # 3. HANDICAP-ABSCHERUNG
+        st.subheader("🛡 Handicap-Absicherung")
+        st.write(f"- Verliert nicht mit mehr als **1 Tor** Abstand: **{hc_daten[1]:.1%}** | **2 Toren**: **{hc_daten[2]:.1%}** | **3 Toren**: **{hc_daten[3]:.1%}**")
+
+        # 4. SPIELER STATS (TORE NACH HZ & KARTEN)
         st.subheader("🎯 Spieler-Spezialmärkte (Tore & Karten)")
         kader = kader_daten.get(team_name, [
             ('Abwehrchef (Nr. 4)', 0.03, 0.28), ('Aggressive-Sechser', 0.05, 0.35),
             ('Top-Stürmer (Nr. 9)', 0.35, 0.05), ('Flügelstürmer A', 0.22, 0.10)
         ])
         
-        col_ts1, col_ts2 = st.columns(2)
+        col_ts1, col_ts2, col_ts3 = st.columns(3)
         with col_ts1:
-            st.markdown("**Torschützen (Anytime):**")
+            st.markdown("**Trifft in 1. HZ:**")
             for spieler, t_anteil, _ in kader:
-                prob_tor = 1 - math.exp(-((exp_hz1 + exp_hz2) * t_anteil))
-                st.write(f"- {spieler}: **{prob_tor:.1%}**")
+                prob_hz1 = 1 - math.exp(-(exp_hz1 * t_anteil))
+                st.write(f"- {spieler}: **{prob_hz1:.1%}**")
         with col_ts2:
-            st.markdown("**Erhält eine Karte (Anytime Card):**")
+            st.markdown("**Trifft in 2. HZ:**")
+            for spieler, t_anteil, _ in kader:
+                prob_hz2 = 1 - math.exp(-(exp_hz2 * t_anteil))
+                st.write(f"- {spieler}: **{prob_hz2:.1%}**")
+        with col_ts3:
+            st.markdown("**Karte (Anytime):**")
             for spieler, _, k_anteil in kader:
-                # Nutzt die Karten-Erwartung des Teams, gewichtet nach Spieler-Aggressivität
                 prob_karte = 1 - math.exp(-(exp_cards_team * k_anteil))
                 st.write(f"- {spieler}: **{prob_karte:.1%}**")
 
-        st.subheader("🏳️ und 🟨 Team-Eckwerte")
-        st.write(f"- Erwartete Ecken: **{corners:.1f}** | Erwartete Karten: **{cards:.1f}**")
-
     with tab_heim:
-        generiere_team_ansicht(heim, exp_h_hz1, exp_h_hz2, h['corners'] * 4.8, h['cards'] * 2.0, exp_karten_h, hc_heim)
+        generiere_team_ansicht(heim, exp_h_hz1, exp_h_hz2, exp_ecken_h_ft, exp_ecken_h_hz1, exp_ecken_h_hz2, h['cards'] * 2.0, exp_karten_h, hc_heim)
         
     with tab_auswaerts:
-        generiere_team_ansicht(auswaerts, exp_a_hz1, exp_a_hz2, a['corners'] * 3.7, a['cards'] * 2.2, exp_karten_a, hc_ausw)
+        generiere_team_ansicht(auswaerts, exp_a_hz1, exp_a_hz2, exp_ecken_a_ft, exp_ecken_a_hz1, exp_ecken_a_hz2, a['cards'] * 2.2, exp_karten_a, hc_ausw)
