@@ -8,10 +8,16 @@ def poisson_wahrscheinlichkeit(k, lam):
         return 1.0 if k == 0 else 0.0
     return (lam**k * math.exp(-lam)) / math.factorial(k)
 
-st.set_page_config(page_title="WM 2026 Pro Simulator", page_icon="🏆", layout="centered")
+# Hilfsfunktion für "Mindestens X Tore" (Kumulierte Poisson-Wahrscheinlichkeit)
+def prob_mindestens_tore(bereiche, lam):
+    # bereiche = 1, 2 oder 3 Tore
+    prob_weniger = sum(poisson_wahrscheinlichkeit(i, lam) for i in range(bereiche))
+    return max(0.0, min(1.0, 1.0 - prob_weniger))
 
-st.title("🏆 WM 2026 Pro Simulator")
-st.markdown("Erweiterte Analyse: 1. Halbzeit, Over/Under, Ecken, Karten & Torschützen.")
+st.set_page_config(page_title="WM 2026 Ultimate Simulator", page_icon="🏆", layout="wide")
+
+st.title("🏆 WM 2026 Ultimate Expert Simulator")
+st.markdown("Das komplette Analyse-Paket mit getrennten Team-Stats, Halbzeit-Tendenzen und HZ-Torschützen.")
 
 # 1. Datenbank aller 48 WM-Teilnehmer 2026
 gruppen_daten = {
@@ -42,7 +48,6 @@ base_ratings = {
     'USA': {'att': 1.3, 'def': 1.0, 'corners': 1.1, 'cards': 0.9},
 }
 
-# Spielerspezifische Tor-Anteile innerhalb des Teams (muss in Summe nicht genau 1 sein, wird normalisiert)
 torschuetzen_daten = {
     'Deutschland': [
         ('Florian Wirtz', 0.25), ('Kai Havertz', 0.22), ('Jamal Musiala', 0.20), 
@@ -71,93 +76,102 @@ with col1:
 with col2:
     auswaerts = st.selectbox("Auswärtsteam wählen:", alle_teams, index=alle_teams.index('Elfenbeinküste') if 'Elfenbeinküste' in alle_teams else 0)
 
-if st.button("Erweiterte Multi-Source-Simulation starten 🎲", type="primary", use_container_width=True):
+if st.button("Umfassende Expert-Simulation starten 🎲", type="primary", use_container_width=True):
     h = base_ratings.get(heim, {'att': 1.0, 'def': 1.1, 'corners': 1.0, 'cards': 1.0})
     a = base_ratings.get(auswaerts, {'att': 1.0, 'def': 1.1, 'corners': 1.0, 'cards': 1.0})
     
-    # Erwartungswerte Tore (Vollzeit)
-    exp_heim = h['att'] * a['def'] * 1.35
-    exp_auswaerts = a['att'] * h['def'] * 1.35
+    # Erwartungswerte Tore Vollzeit (FT)
+    exp_h_ft = h['att'] * a['def'] * 1.35
+    exp_a_ft = a['att'] * h['def'] * 1.35
+    exp_total_ft = exp_h_ft + exp_a_ft
     
-    # Matrizen generieren
+    # Aufteilung der Hälften (1. HZ = 45%, 2. HZ = 55%)
+    exp_h_hz1 = exp_h_ft * 0.45
+    exp_a_hz1 = exp_a_ft * 0.45
+    exp_total_hz1 = exp_h_hz1 + exp_a_hz1
+    
+    exp_h_hz2 = exp_h_ft * 0.55
+    exp_a_hz2 = exp_a_ft * 0.55
+    exp_total_hz2 = exp_h_hz2 + exp_a_hz2
+
+    # Matrizen für Tendenzen (1. HZ und 2. HZ separat)
     max_tore = 6
-    matrix_ft = np.zeros((max_tore, max_tore))
-    matrix_ht = np.zeros((max_tore, max_tore))
-    
+    matrix_hz1 = np.zeros((max_tore, max_tore))
+    matrix_hz2 = np.zeros((max_tore, max_tore))
     for hc in range(max_tore):
         for ac in range(max_tore):
-            matrix_ft[hc, ac] = poisson_wahrscheinlichkeit(hc, exp_heim) * poisson_wahrscheinlichkeit(ac, exp_auswaerts)
-            matrix_ht[hc, ac] = poisson_wahrscheinlichkeit(hc, exp_heim * 0.45) * poisson_wahrscheinlichkeit(ac, exp_auswaerts * 0.45)
+            matrix_hz1[hc, ac] = poisson_wahrscheinlichkeit(hc, exp_h_hz1) * poisson_wahrscheinlichkeit(ac, exp_a_hz1)
+            matrix_hz2[hc, ac] = poisson_wahrscheinlichkeit(hc, exp_h_hz2) * poisson_wahrscheinlichkeit(ac, exp_a_hz2)
 
-    # 1. HALBZEIT ANALYSE
-    ht_heim_sieg = np.sum(np.tril(matrix_ht, -1))
-    ht_remis = np.sum(np.diag(matrix_ht))
-    ht_ausw_sieg = np.sum(np.triu(matrix_ht, 1))
-    ht_h_tipp, ht_a_tipp = np.unravel_index(matrix_ht.argmax(), matrix_ht.shape)
+    # Tendenzen Berechnen
+    hz1_h_sieg, hz1_remis, hz1_a_sieg = np.sum(np.tril(matrix_hz1, -1)), np.sum(np.diag(matrix_hz1)), np.sum(np.triu(matrix_hz1, 1))
+    hz2_h_sieg, hz2_remis, hz2_a_sieg = np.sum(np.tril(matrix_hz2, -1)), np.sum(np.diag(matrix_hz2)), np.sum(np.triu(matrix_hz2, 1))
 
-    # OVER / UNDER
-    over_15 = sum(matrix_ft[hc, ac] for hc in range(max_tore) for ac in range(max_tore) if hc + ac > 1.5)
-    over_25 = sum(matrix_ft[hc, ac] for hc in range(max_tore) for ac in range(max_tore) if hc + ac > 2.5)
-    over_35 = sum(matrix_ft[hc, ac] for hc in range(max_tore) for ac in range(max_tore) if hc + ac > 3.5)
+    st.success("### 📊 Ultimative Simulationsergebnisse")
     
-    ht_over_05 = sum(matrix_ht[hc, ac] for hc in range(max_tore) for ac in range(max_tore) if hc + ac > 0.5)
-
-    # ECKEN & KARTEN
-    exp_ecken_h = h['corners'] * 4.8
-    exp_ecken_a = a['corners'] * 3.7
-    exp_karten_h = h['cards'] * 2.0
-    exp_karten_a = a['cards'] * 2.2
-
-    # UI AUSGABE
-    st.success("### 📊 Erweiterte Simulationsergebnisse")
+    # TABELLEN-STRUKTUR FÜR DIE ÜBERSICHT
+    tab_gesamt, tab_heim, tab_auswaerts = st.tabs(["🌍 Gesamtspiel-Märkte", f"🏠 {heim} (Heim)", f"🚀 {auswaerts} (Auswärts)"])
     
-    # Sektion 1: 1. Halbzeit
-    st.subheader("⏱ 1. Halbzeit Prognose")
-    c1, c2, c3 = st.columns(3)
-    c1.metric(f"Führung {heim}", f"{ht_heim_sieg:.1%}")
-    c2.metric("Remis zur Hz.", f"{ht_remis:.1%}")
-    c3.metric(f"Führung {auswaerts}", f"{ht_ausw_sieg:.1%}")
-    st.markdown(f"🎯 **Wahrscheinlichstes Halbzeit-Ergebnis:** {ht_h_tipp} : {ht_a_tipp}")
+    with tab_gesamt:
+        st.subheader("⏱ Halbzeit-Tendenzen (Wer gewinnt die HZ?)")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("**1. Halbzeit Tendenz**")
+            st.write(f"- Sieg {heim}: **{hz1_h_sieg:.1%}** | Remis: **{hz1_remis:.1%}** | Sieg {auswaerts}: **{hz1_a_sieg:.1%}**")
+        with c2:
+            st.markdown("**2. Halbzeit Tendenz (separat gewertet)**")
+            st.write(f"- Sieg {heim}: **{hz2_h_sieg:.1%}** | Remis: **{hz2_remis:.1%}** | Sieg {auswaerts}: **{hz2_a_sieg:.1%}**")
+            
+        st.subheader("⚽ Tor-Stufen pro Halbzeit (Gesamtspiel)")
+        col_z1, col_z2 = st.columns(2)
+        with col_z1:
+            st.markdown("**1. Halbzeit - Tore Gesamt**")
+            st.write(f"- Mindestens 1+ Tore: **{prob_mindestens_tore(1, exp_total_hz1):.1%}**")
+            st.write(f"- Mindestens 2+ Tore: **{prob_mindestens_tore(2, exp_total_hz1):.1%}**")
+            st.write(f"- Mindestens 3+ Tore: **{prob_mindestens_tore(3, exp_total_hz1):.1%}**")
+        with col_z2:
+            st.markdown("**2. Halbzeit - Tore Gesamt**")
+            st.write(f"- Mindestens 1+ Tore: **{prob_mindestens_tore(1, exp_total_hz2):.1%}**")
+            st.write(f"- Mindestens 2+ Tore: **{prob_mindestens_tore(2, exp_total_hz2):.1%}**")
+            st.write(f"- Mindestens 3+ Tore: **{prob_mindestens_tore(3, exp_total_hz2):.1%}**")
 
-    # Sektion 2: Over/Under Tore
-    st.subheader("⚽ Tor-Wahrscheinlichkeiten (Over)")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Über 1.5 Tore", f"{over_15:.1%}")
-    c2.metric("Über 2.5 Tore", f"{over_25:.1%}")
-    c3.metric("Über 3.5 Tore", f"{over_35:.1%}")
-    st.markdown(f"**Halbzeit-Tore:** Mindestens 1 Tor in der 1. HZ: **{ht_over_05:.1%}**")
+    def generiere_team_ansicht(team_name, exp_ft, exp_hz1, exp_hz2, corners, cards):
+        st.subheader(f"⚽ Tor-Stufen für {team_name}")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("**1. Halbzeit Teamtore**")
+            st.write(f"- Mindestens 1+ Teamtor: **{prob_mindestens_tore(1, exp_hz1):.1%}**")
+            st.write(f"- Mindestens 2+ Teamtore: **{prob_mindestens_tore(2, exp_hz1):.1%}**")
+        with c2:
+            st.markdown("**2. Halbzeit Teamtore**")
+            st.write(f"- Mindestens 1+ Teamtor: **{prob_mindestens_tore(1, exp_hz2):.1%}**")
+            st.write(f"- Mindestens 2+ Teamtore: **{prob_mindestens_tore(2, exp_hz2):.1%}**")
+            
+        st.subheader("🏳️ und 🟨 Standard-Stats")
+        st.write(f"- Erwartete Ecken über 90 Min: **{corners:.1f}**")
+        st.write(f"- Erwartete Gelbe Karten über 90 Min: **{cards:.1f}**")
 
-    # Sektion 3: TORSCHÜTZEN PROGNOSE
-    st.subheader("🎯 Torschützen-Wahrscheinlichkeit (Anytime)")
-    
-    def zeige_torschuetzen(team_name, exp_tore):
-        # Fallback-Kader generieren, falls das Team nicht detailliert in der DB angelegt ist
+        st.subheader("🎯 Torschützen nach Spielabschnitt")
         kader = torschuetzen_daten.get(team_name, [
             ('Top-Stürmer (Nr. 9)', 0.35), ('Flügelstürmer A', 0.22), 
-            ('Flügelstürmer B', 0.18), ('Offensives Mittelfeld', 0.15), 
-            ('Zentrales Mittelfeld', 0.07), ('Kopfballstarker Verteidiger', 0.03)
+            ('Flügelstürmer B', 0.18), ('Offensives Mittelfeld', 0.15)
         ])
         
-        for spieler, anteil in kader:
-            # Wahrscheinlichkeit, dass der Spieler mindestens 1 Tor schießt: 1 - e^(-(Anteil * Gesamt-Erwartung))
-            spieler_lamb = exp_tore * anteil
-            prob_anytime = 1 - math.exp(-spieler_lamb)
-            st.write(f"- **{spieler}** ({team_name}): **{prob_anytime:.1%}**")
+        # Spalten für HZ1 und HZ2 Torschützen
+        col_ts1, col_ts2 = st.columns(2)
+        with col_ts1:
+            st.markdown("**Trifft in der 1. Halbzeit:**")
+            for spieler, anteil in kader:
+                prob = 1 - math.exp(-(exp_hz1 * anteil))
+                st.write(f"- {spieler}: **{prob:.1%}**")
+        with col_ts2:
+            st.markdown("**Trifft in der 2. Halbzeit:**")
+            for spieler, anteil in kader:
+                prob = 1 - math.exp(-(exp_hz2 * anteil))
+                st.write(f"- {spieler}: **{prob:.1%}**")
 
-    col_t1, col_t2 = st.columns(2)
-    with col_t1:
-        st.markdown(f"**{heim}**")
-        zeige_torschuetzen(heim, exp_heim)
-    with col_t2:
-        st.markdown(f"**{auswaerts}**")
-        zeige_torschuetzen(auswaerts, exp_auswaerts)
-
-    # Sektion 4: Ecken & Karten
-    st.subheader("🏳️ und 🟨 Prognostizierte Anzahl")
-    col_e1, col_e2 = st.columns(2)
-    col_e1.metric(f"Erwartete Ecken ({heim})", f"{exp_ecken_h:.1f}")
-    col_e2.metric(f"Erwartete Ecken ({auswaerts})", f"{exp_ecken_a:.1f}")
-    
-    col_k1, col_k2 = st.columns(2)
-    col_k1.metric(f"Erwartete Karten ({heim})", f"{exp_karten_h:.1f}")
-    col_k2.metric(f"Erwartete Karten ({auswaerts})", f"{exp_karten_a:.1f}")
+    with tab_heim:
+        generiere_team_ansicht(heim, exp_h_ft, exp_h_hz1, exp_h_hz2, h['corners'] * 4.8, h['cards'] * 2.0)
+        
+    with tab_auswaerts:
+        generiere_team_ansicht(auswaerts, exp_a_ft, exp_a_hz1, exp_a_hz2, a['corners'] * 3.7, a['cards'] * 2.2)
