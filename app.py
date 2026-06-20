@@ -1,16 +1,12 @@
-import os
-import subprocess
-import sys
-
-# AUTOMATISCHER INSTALLER: Mit korrekter Einrückung für Python
-try:
-    import scipy.stats as stats
-except ModuleNotFoundError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "scipy", "--user"])
-    import scipy.stats as stats
-
 import streamlit as st
 import numpy as np
+import math
+
+# EIGENE POISSON-FUNKTION (Ersetzt scipy komplett!)
+def poisson_wahrscheinlichkeit(k, lam):
+    if lam <= 0:
+        return 1.0 if k == 0 else 0.0
+    return (lam**k * math.exp(-lam)) / math.factorial(k)
 
 st.set_page_config(page_title="WM 2026 Multi-Source Simulator", page_icon="🏆", layout="centered")
 
@@ -83,7 +79,8 @@ if st.button("Multi-Source-Simulation starten 🎲", type="primary", use_contain
     matrix = np.zeros((max_tore, max_tore))
     for h in range(max_tore):
         for a in range(max_tore):
-            matrix[h, a] = stats.poisson.pmf(h, exp_heim) * stats.poisson.pmf(a, exp_auswaerts)
+            # Nutzt jetzt unsere eigene mathematische Formel!
+            matrix[h, a] = poisson_wahrscheinlichkeit(h, exp_heim) * poisson_wahrscheinlichkeit(a, exp_auswaerts)
             
     heimsieg = np.sum(np.tril(matrix, -1))
     unentschieden = np.sum(np.diag(matrix))
