@@ -10,14 +10,13 @@ def poisson_wahrscheinlichkeit(k, lam):
 
 # Hilfsfunktion für "Mindestens X Tore" (Kumulierte Poisson-Wahrscheinlichkeit)
 def prob_mindestens_tore(bereiche, lam):
-    # bereiche = 1, 2 oder 3 Tore
     prob_weniger = sum(poisson_wahrscheinlichkeit(i, lam) for i in range(bereiche))
     return max(0.0, min(1.0, 1.0 - prob_weniger))
 
 st.set_page_config(page_title="WM 2026 Ultimate Simulator", page_icon="🏆", layout="wide")
 
 st.title("🏆 WM 2026 Ultimate Expert Simulator")
-st.markdown("Das komplette Analyse-Paket mit getrennten Team-Stats, Halbzeit-Tendenzen und HZ-Torschützen.")
+st.markdown("Das komplette Analyse-Paket inklusive Vollzeit-Tendenzen und exakten Halbzeit-Ergebnissen.")
 
 # 1. Datenbank aller 48 WM-Teilnehmer 2026
 gruppen_daten = {
@@ -94,18 +93,32 @@ if st.button("Umfassende Expert-Simulation starten 🎲", type="primary", use_co
     exp_a_hz2 = exp_a_ft * 0.55
     exp_total_hz2 = exp_h_hz2 + exp_a_hz2
 
-    # Matrizen für Tendenzen (1. HZ und 2. HZ separat)
+    # Matrizen für exakte Ergebnisse und Tendenzen generieren
     max_tore = 6
+    matrix_ft = np.zeros((max_tore, max_tore))
     matrix_hz1 = np.zeros((max_tore, max_tore))
     matrix_hz2 = np.zeros((max_tore, max_tore))
+    
     for hc in range(max_tore):
         for ac in range(max_tore):
+            matrix_ft[hc, ac] = poisson_wahrscheinlichkeit(hc, exp_h_ft) * poisson_wahrscheinlichkeit(ac, exp_a_ft)
             matrix_hz1[hc, ac] = poisson_wahrscheinlichkeit(hc, exp_h_hz1) * poisson_wahrscheinlichkeit(ac, exp_a_hz1)
             matrix_hz2[hc, ac] = poisson_wahrscheinlichkeit(hc, exp_h_hz2) * poisson_wahrscheinlichkeit(ac, exp_a_hz2)
 
-    # Tendenzen Berechnen
+    # 1. Tendenzen Berechnen
+    ft_h_sieg, ft_remis, ft_a_sieg = np.sum(np.tril(matrix_ft, -1)), np.sum(np.diag(matrix_ft)), np.sum(np.triu(matrix_ft, 1))
     hz1_h_sieg, hz1_remis, hz1_a_sieg = np.sum(np.tril(matrix_hz1, -1)), np.sum(np.diag(matrix_hz1)), np.sum(np.triu(matrix_hz1, 1))
     hz2_h_sieg, hz2_remis, hz2_a_sieg = np.sum(np.tril(matrix_hz2, -1)), np.sum(np.diag(matrix_hz2)), np.sum(np.triu(matrix_hz2, 1))
+
+    # 2. Exakte Tipps und deren Wahrscheinlichkeit finden
+    ft_h_tipp, ft_a_tipp = np.unravel_index(matrix_ft.argmax(), matrix_ft.shape)
+    hz1_h_tipp, hz1_a_tipp = np.unravel_index(matrix_hz1.argmax(), matrix_hz1.shape)
+    hz2_h_tipp, hz2_a_tipp = np.unravel_index(matrix_hz2.argmax(), matrix_hz2.shape)
+
+    # 3. Over / Under Tore Märkte
+    over_15 = sum(matrix_ft[hc, ac] for hc in range(max_tore) for ac in range(max_tore) if hc + ac > 1.5)
+    over_25 = sum(matrix_ft[hc, ac] for hc in range(max_tore) for ac in range(max_tore) if hc + ac > 2.5)
+    over_35 = sum(matrix_ft[hc, ac] for hc in range(max_tore) for ac in range(max_tore) if hc + ac > 3.5)
 
     st.success("### 📊 Ultimative Simulationsergebnisse")
     
@@ -113,14 +126,35 @@ if st.button("Umfassende Expert-Simulation starten 🎲", type="primary", use_co
     tab_gesamt, tab_heim, tab_auswaerts = st.tabs(["🌍 Gesamtspiel-Märkte", f"🏠 {heim} (Heim)", f"🚀 {auswaerts} (Auswärts)"])
     
     with tab_gesamt:
-        st.subheader("⏱ Halbzeit-Tendenzen (Wer gewinnt die HZ?)")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("**1. Halbzeit Tendenz**")
-            st.write(f"- Sieg {heim}: **{hz1_h_sieg:.1%}** | Remis: **{hz1_remis:.1%}** | Sieg {auswaerts}: **{hz1_a_sieg:.1%}**")
-        with c2:
-            st.markdown("**2. Halbzeit Tendenz (separat gewertet)**")
-            st.write(f"- Sieg {heim}: **{hz2_h_sieg:.1%}** | Remis: **{hz2_remis:.1%}** | Sieg {auswaerts}: **{hz2_a_sieg:.1%}**")
+        # ABSCHNITT: GESAMTSPIEL (VOLLZEIT 90 MINUTEN)
+        st.subheader("⚽ Gesamtspiel (90 Min) Tendenz & Ergebnis")
+        c1, c2, c3 = st.columns(3)
+        c1.metric(f"Sieg {heim} (FT)", f"{ft_h_sieg:.1%}")
+        c2.metric("Unentschieden (FT)", f"{ft_remis:.1%}")
+        c3.metric(f"Sieg {auswaerts} (FT)", f"{ft_a_sieg:.1%}")
+        st.markdown(f"🎯 **Wahrscheinlichstes Endergebnis (90 Min):** {ft_h_tipp} : {ft_a_tipp} (Chance: {matrix_ft[ft_h_tipp, ft_a_tipp]:.1%})")
+        
+        st.write("---")
+
+        # ABSCHNITT: HALBZEIT-TENDENZEN & EXAKTE ERGEBNISSE
+        st.subheader("⏱ Halbzeit-Märkte im Vergleich")
+        col_hz1, col_hz2 = st.columns(2)
+        
+        with col_hz1:
+            st.markdown("#### **1. Halbzeit**")
+            st.write(f"- 🏠 Führung {heim}: **{hz1_h_sieg:.1%}**")
+            st.write(f"- 🤝 Remis zur Pause: **{hz1_remis:.1%}**")
+            st.write(f"- 🚀 Führung {auswaerts}: **{hz1_a_sieg:.1%}**")
+            st.markdown(f"🎯 **Exakter HZ1-Tipp:** {hz1_h_tipp} : {hz1_a_tipp} (Chance: {matrix_hz1[hz1_h_tipp, hz1_a_tipp]:.1%})")
+            
+        with col_hz2:
+            st.markdown("#### **2. Halbzeit (separat gewertet)**")
+            st.write(f"- 🏠 Sieg {heim} in HZ2: **{hz2_h_sieg:.1%}**")
+            st.write(f"- 🤝 Remis in HZ2: **{hz2_remis:.1%}**")
+            st.write(f"- 🚀 Sieg {auswaerts} in HZ2: **{hz2_a_sieg:.1%}**")
+            st.markdown(f"🎯 **Exakter HZ2-Tipp:** {hz2_h_tipp} : {hz2_a_tipp} (Chance: {matrix_hz2[hz2_h_tipp, hz2_a_tipp]:.1%})")
+            
+        st.write("---")
             
         st.subheader("⚽ Tor-Stufen pro Halbzeit (Gesamtspiel)")
         col_z1, col_z2 = st.columns(2)
@@ -157,7 +191,6 @@ if st.button("Umfassende Expert-Simulation starten 🎲", type="primary", use_co
             ('Flügelstürmer B', 0.18), ('Offensives Mittelfeld', 0.15)
         ])
         
-        # Spalten für HZ1 und HZ2 Torschützen
         col_ts1, col_ts2 = st.columns(2)
         with col_ts1:
             st.markdown("**Trifft in der 1. Halbzeit:**")
